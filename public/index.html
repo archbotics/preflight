@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A practical launch check for small-business websites.">
+  <link rel="canonical" href="https://preflight.archbotics.workers.dev/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Preflight — Archbotics">
+  <meta property="og:description" content="Turn a website launch into a clear fix brief.">
+  <meta property="og:image" content="https://preflight.archbotics.workers.dev/assets/social.png">
+  <title>Preflight — Archbotics</title>
+  <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header shell">
+    <a class="brand" href="/" aria-label="Preflight home"><img src="/assets/mark.svg" width="29" height="29" alt=""><span>Preflight</span><small>by Archbotics · free beta</small></a>
+    <a class="header-link" href="#how-it-works">How it works</a>
+  </header>
+  <main id="main">
+    <noscript>
+      <section class="noscript shell">
+        <p class="eyebrow">Preflight by Archbotics</p>
+        <h1>A practical launch brief needs JavaScript enabled.</h1>
+        <p>Preflight checks the returned HTML and HTTP response from one public page. It does not render JavaScript, CSS, or page layout, submit forms, or fetch page assets.</p>
+        <p>Enable JavaScript to choose Preview or Live and receive a fix, review, and passed-check brief. No account is required.</p>
+      </section>
+    </noscript>
+  </main>
+  <footer class="site-footer shell"><span>© Archbotics</span><nav aria-label="Footer"><button class="footer-link" type="button" data-docs="api">Public API</button><button class="footer-link" type="button" data-docs="privacy">Privacy</button></nav></footer>
+  <dialog id="docs-dialog" aria-labelledby="docs-title">
+    <div class="docs-dialog-head"><h2 id="docs-title" tabindex="-1">Preflight documentation</h2><button id="docs-close" class="dialog-close" type="button" aria-label="Close documentation">×</button></div>
+    <section id="api-docs" class="docs-section" hidden>
+      <p>Submit one public page with JSON. URLs must be HTTP(S), no more than 2,048 characters, and have no credentials, query string, IP or local hostname, or nonstandard port. Requests are GET-only; every redirect is checked again. Limits: three redirects, 512 KiB HTML, and 12 seconds total.</p>
+      <pre><code>curl -X POST https://preflight.archbotics.workers.dev/api/check \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","mode":"live"}'</code></pre>
+      <p>The response includes a structured report and, when configured, a short-lived share token. Reports are stored only after <code>POST /api/share</code>.</p>
+    </section>
+    <section id="privacy-docs" class="docs-section" hidden>
+      <p>A scan fetches a page to inspect its HTML and response. Raw HTML is not stored. A report is stored only when you choose Share, on Cloudflare infrastructure, for seven days. Normal infrastructure processing may occur. The browser keeps the deletion key for reports you create; it is never part of the share link.</p>
+    </section>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

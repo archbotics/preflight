@@ -1,13 +1,27 @@
 {
-  "name": "archbotics-launchcheck",
-  "version": "0.1.0",
+  "name": "@archbotics/preflight",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --port 8787",
     "test": "node --test test/*.test.js",
-    "check": "node --check src/worker.js && node --check src/analyze.js && node --check public/app.js",
+    "smoke": "node scripts/smoke.mjs",
+    "test:browser": "node scripts/browser-check.mjs",
+    "check": "find src public scripts -type f \\( -name '*.js' -o -name '*.mjs' \\) -print0 | xargs -0 -n1 node --check",
     "build": "wrangler deploy --dry-run --outdir artifacts/build",
     "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "ipaddr.js": "^2.5.0",
+    "parse5": "^8.0.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
+    "esbuild": "^0.28.2",
+    "marked": "^18.0.11",
+    "miniflare": "^5.20260903.0-alpha",
+    "wrangler": "^4.129.0"
   }
 }
