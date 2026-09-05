@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-05T07:53:36.774Z",
+  "pausedVersion": "94db1e3a-0c70-4e94-982e-d52e47bc2b82",
+  "passed": [
+    "health disabled",
+    "existing report preserved across deployment",
+    "new scan paused503",
+    "new share paused503",
+    "existing creator deletion200",
+    "subsequent read404"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "at": "2026-09-05T07:56:07.583Z",
+  "version": "9ffac7d6-1d7d-4bcf-a485-59266702de5e",
+  "deployment": "ee63d0b6-16ac-4df4-89ad-1b607ec60ae6",
+  "health": {
+    "ok": true,
+    "version": "1.0.0",
+    "enabled": true
+  },
+  "deletedReportRemainsAbsent": true,
+  "postRollbackSmoke": "smoke.json",
+  "postRollbackBrowser": {
+    "widths": [
+      1440,
+      390
+    ],
+    "axeViolations": 0,
+    "checks": 16,
+    "overflow": false,
+    "canonicalMarkdownDownload": true
+  }
+}

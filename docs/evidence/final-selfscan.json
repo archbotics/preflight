@@ -1,0 +1,41 @@
+{
+  "at": "2026-09-05T07:52:54.594Z",
+  "summary": {
+    "fix": 0,
+    "review": 6,
+    "pass": 10,
+    "info": 0
+  },
+  "findings": [
+    {
+      "id": "indexing",
+      "status": "review",
+      "title": "Live indexing needs rendered-page review"
+    },
+    {
+      "id": "h1",
+      "status": "review",
+      "title": "Source H1 not found"
+    },
+    {
+      "id": "placeholder-copy",
+      "status": "review",
+      "title": "Placeholder copy needs rendered-page review"
+    },
+    {
+      "id": "development-urls",
+      "status": "review",
+      "title": "Development URLs need rendered-page review"
+    },
+    {
+      "id": "link-targets",
+      "status": "review",
+      "title": "Empty or unresolved anchor targets found"
+    },
+    {
+      "id": "contact-route",
+      "status": "review",
+      "title": "Contact route needs review"
+    }
+  ]
+}

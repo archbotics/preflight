@@ -4,6 +4,8 @@ Check a public webpage before handover. Preflight turns observable HTML and HTTP
 
 **Public beta:** https://preflight.archbotics.workers.dev
 
+[Release and deployed verification](docs/RELEASE.md) · [API](docs/API.md) · [Operations](docs/OPERATIONS.md)
+
 ![Preflight's public website checker](docs/images/preflight.png)
 
 - 16 source checks with evidence, suggested change and acceptance check.

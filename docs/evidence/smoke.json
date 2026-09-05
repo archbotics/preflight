@@ -1,0 +1,23 @@
+{
+  "at": "2026-09-05T07:54:41.205Z",
+  "base": "https://preflight.archbotics.workers.dev",
+  "target": "https://archbotics.com/",
+  "checks": [
+    "enabled health",
+    "private stats require authentication",
+    "local address rejected",
+    "live public HTML scan with signed report",
+    "modified report cannot be published",
+    "seven-day report sharing",
+    "read preserves report and withholds deletion key",
+    "shared page serves with noindex",
+    "incorrect deletion key rejected",
+    "creator deletes report; subsequent read is absent"
+  ],
+  "summary": {
+    "fix": 0,
+    "review": 0,
+    "pass": 16,
+    "info": 0
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "at": "2026-09-05T07:40:00.767Z",
+  "base": "https://preflight.archbotics.workers.dev",
+  "target": "https://archbotics.com/sivut/",
+  "summary": {
+    "fix": 0,
+    "review": 0,
+    "pass": 16,
+    "info": 0
+  },
+  "passed": [
+    "real form scan",
+    "privacy preserves share token",
+    "real share",
+    "creator reload keeps delete capability",
+    "fresh reader cannot delete",
+    "delete from UI",
+    "recipient reload confirms absence"
+  ]
+}
