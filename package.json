@@ -1,0 +1,13 @@
+{
+  "name": "archbotics-launchcheck",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "test": "node --test test/*.test.js",
+    "check": "node --check src/worker.js && node --check src/analyze.js && node --check public/app.js",
+    "build": "wrangler deploy --dry-run --outdir artifacts/build",
+    "deploy": "wrangler deploy"
+  }
+}
