@@ -35,6 +35,11 @@ def main():
     if len(sys.argv) < 2:
         raise SystemExit('Usage: cloudflare.py deploy|secrets|stats|deployments|rollback VERSION')
     action = sys.argv[1]
+    days = '7'
+    if action == 'stats' and len(sys.argv) > 2:
+        if len(sys.argv) != 4 or sys.argv[2] != '--days' or sys.argv[3] not in ('7', '30'):
+            raise SystemExit('Usage: cloudflare.py stats [--days 7|30]')
+        days = sys.argv[3]
     credential_path = Path(os.environ.get('PREFLIGHT_CF_ENV', str(Path.home() / '.config/hq/cloudflare.env')))
     app_path = Path(os.environ.get('PREFLIGHT_APP_ENV', str(Path.home() / '.config/hq/preflight.env')))
     env = os.environ.copy()
@@ -60,7 +65,7 @@ def main():
         url = os.environ.get('PREFLIGHT_BASE_URL', 'https://preflight.archbotics.workers.dev')
         if not url.startswith('https://'):
             raise SystemExit('Operator stats require an HTTPS origin.')
-        request = urllib.request.Request(url.rstrip('/') + '/api/stats', headers={
+        request = urllib.request.Request(url.rstrip('/') + '/api/stats?days=' + days, headers={
             'Authorization': 'Bearer ' + app['ADMIN_TOKEN'], 'User-Agent': 'PreflightOperator/1.0', 'Accept': 'application/json'})
         with urllib.request.build_opener(NoRedirect).open(request, timeout=20) as response:
             print(json.dumps(json.load(response), indent=2))

@@ -119,3 +119,17 @@ test('native SQLite transactions enforce caps and deletion; actual alarm removes
   assert.equal(entries.has('day:2000-01-01'), false);
   assert.equal(snapshot.alarm, future);
 });
+
+test('native audience increments atomically and exposes only coarse daily buckets', {timeout: 5000}, async t => {
+  const mf = await runtime(t, {stdin: {contents: fixture, resolveDir: root}}, {CONTROL: {className: 'FixtureControl', useSQLite: true}});
+  const results = await Promise.all(Array.from({length: 12}, () => mf.dispatchFetch('https://fixture.invalid/audience', {method: 'POST', body: JSON.stringify({event: 'page', audience: 'unknown'})})));
+  assert.ok(results.every(response => response.status === 200));
+  const stats = await (await mf.dispatchFetch('https://fixture.invalid/stats?days=30')).json();
+  assert.equal(stats.audience.windowDays, 30);
+  assert.deepEqual(stats.days, []);
+  assert.equal(stats.audience.days.length, 1);
+  assert.deepEqual(stats.audience.days[0].unknown, {page: 12});
+  const snapshot = await (await mf.dispatchFetch('https://fixture.invalid/fixture/inspect')).json();
+  assert.ok(snapshot.alarm > Date.now());
+  assert.ok(snapshot.entries.every(([key]) => key === 'audience_since' || /^audience:\d{4}-\d{2}-\d{2}$/.test(key)), 'storage has no request or visitor keys');
+});

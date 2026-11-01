@@ -1,3 +1,4 @@
+import {AUDIENCES, USAGE_EVENTS} from './audience.js';
 // One strongly consistent object holds aggregate counters and explicitly shared
 // reports. It never receives raw fetched HTML, visitor IPs, or request headers.
 export const REPORT_TTL_MS = 7 * 86400000;
@@ -17,6 +18,21 @@ export class Control {
   async fetch(request) {
     const path = new URL(request.url).pathname;
     const now = Date.now();
+    if (path === '/audience' && request.method === 'POST') {
+      const data = await request.json();
+      if (!data || Object.keys(data).sort().join(',') !== 'audience,event' || !AUDIENCES.includes(data.audience) || !USAGE_EVENTS.includes(data.event)) return reply({ok: false}, 400);
+      await this.state.storage.transaction(async txn => {
+        const key = `audience:${new Date(now).toISOString().slice(0, 10)}`;
+        const day = await txn.get(key) || {};
+        day[data.audience] ||= {};
+        day[data.audience][data.event] = (day[data.audience][data.event] || 0) + 1;
+        await txn.put(key, day);
+        if (!await txn.get('audience_since')) await txn.put('audience_since', new Date(now).toISOString());
+        const alarm = await txn.getAlarm();
+        if (!alarm || alarm > now + 86400000) await txn.setAlarm(now + 86400000);
+      });
+      return reply({ok: true});
+    }
     if (path === '/reserve' && request.method === 'POST') {
       const accepted = await this.state.storage.transaction(async txn => {
         const key = dateKey(now);
@@ -75,8 +91,17 @@ export class Control {
     }
     if (path === '/stats' && request.method === 'GET') {
       const days = await this.state.storage.list({prefix: 'day:', reverse: true, limit: 8});
+      const requested = new URL(request.url).searchParams.get('days') || '7';
+      if (!['7', '30'].includes(requested)) return reply({ok: false}, 400);
+      const windowDays = Number(requested), to = new Date(now).toISOString().slice(0, 10);
+      const from = new Date(now - (windowDays - 1) * 86400000).toISOString().slice(0, 10);
+      const audienceDays = await this.state.storage.list({prefix: 'audience:', reverse: true, limit: 35});
+      const observedSince = await this.state.storage.get('audience_since') || null;
       return reply({asOf: new Date(now).toISOString(), dailyScanLimit: configuredLimit(this.env.DAILY_SCAN_LIMIT),
-        days: [...days].map(([key, counts]) => ({date: key.slice(4), ...counts}))});
+        days: [...days].map(([key, counts]) => ({date: key.slice(4), ...counts})),
+        audience: {schemaVersion: 1, windowDays, from, to, observedSince,
+          coverage: 'Prospective best-effort request heuristics, not verified people. Missing days are unobserved. Legacy operational totals are unclassified and separate; today is partial.',
+          days: [...audienceDays].filter(([key]) => key.slice(9) >= from && key.slice(9) <= to).map(([key, counts]) => ({date: key.slice(9), ...counts}))}});
     }
     return reply({ok: false}, 404);
   }
@@ -90,7 +115,12 @@ export class Control {
       await this.state.storage.delete([key, `report:${id}`]);
     }
     const next = await this.state.storage.list({prefix: 'expires:', limit: 1});
-    if (next.size) await this.state.storage.setAlarm(Math.max(now + 1000, Number([...next.keys()][0].split(':')[1])));
+    const audienceDays = await this.state.storage.list({prefix: 'audience:'});
+    for (const [key] of audienceDays) if (Date.parse(key.slice(9)) < now - 35 * 86400000) await this.state.storage.delete(key);
+    const nextReportAlarm = next.size ? Math.max(now + 1000, Number([...next.keys()][0].split(':')[1])) : Infinity;
+    const nextCleanupAlarm = audienceDays.size ? now + 86400000 : Infinity;
+    const nextAlarm = Math.min(nextReportAlarm, nextCleanupAlarm);
+    if (Number.isFinite(nextAlarm)) await this.state.storage.setAlarm(nextAlarm);
     const oldDays = await this.state.storage.list({prefix: 'day:'});
     for (const [key] of oldDays) if (Date.parse(key.slice(4)) < now - 8 * 86400000) await this.state.storage.delete(key);
   }

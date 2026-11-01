@@ -34,7 +34,7 @@ async function run() {
 
   try {
     for (const viewport of viewports) {
-      const context = await browser.newContext({ viewport });
+      const context = await browser.newContext({ viewport, extraHTTPHeaders: {'X-Archbotics-QA': '1', DNT: '1'} });
       const page = await context.newPage();
       await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
       await page.screenshot({ path: resolve(artifactDir, `preflight-landing-${viewport.name}.png`), fullPage: true });

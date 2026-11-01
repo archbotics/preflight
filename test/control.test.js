@@ -58,3 +58,42 @@ test('alarm deletes expired data, retains unexpired data and schedules next expi
   assert.equal(await storage.getAlarm(), future);
   assert.equal(await storage.get('day:2000-01-01'), undefined);
 });
+
+test('audience windows are separate from operational totals, bounded, and retain 30-day history', async () => {
+  const storage = memoryStorage(); const control = new Control({storage}, {});
+  const now = Date.now(), date = days => new Date(now - days * 86400000).toISOString().slice(0, 10);
+  await storage.put(`audience:${date(6)}`, {unknown: {page: 2}});
+  await storage.put(`audience:${date(29)}`, {bot_like: {scan_completed: 3}});
+  await storage.put(`audience:${date(30)}`, {browser_like: {shared: 100}});
+  await storage.put(`audience:${date(36)}`, {unknown: {page: 100}});
+  assert.equal((await control.fetch(req('/audience', {event: 'page', audience: 'browser_like', ip: 'forbidden'}))).status, 400);
+  assert.equal((await control.fetch(req('/audience', {event: 'unknown', audience: 'browser_like'}))).status, 400);
+  assert.equal((await control.fetch(req('/audience', {event: 'page', audience: 'human'}))).status, 400);
+  for (let n = 0; n < 3; n++) assert.equal((await control.fetch(req('/audience', {event: 'page', audience: 'browser_like'}))).status, 200);
+  const week = await (await control.fetch(req('/stats?days=7'))).json();
+  const month = await (await control.fetch(req('/stats?days=30'))).json();
+  assert.equal(week.audience.days.length, 2); assert.equal(month.audience.days.length, 3);
+  assert.equal(week.audience.days[0].browser_like.page, 3);
+  assert.deepEqual(week.days, [], 'audience does not manufacture operational counters');
+  assert.ok(week.audience.observedSince); assert.equal(month.audience.windowDays, 30);
+  assert.equal((await control.fetch(req('/stats?days=31'))).status, 400);
+  await control.alarm();
+  assert.equal(await storage.get(`audience:${date(36)}`), undefined);
+  assert.ok(await storage.get(`audience:${date(29)}`));
+  assert.ok(await storage.getAlarm() > now, 'daily cleanup continues without shared reports');
+});
+
+test('audience cleanup runs daily even when the next report expires later, while earlier expiry still wins', async t => {
+  const now = Date.now(); t.mock.method(Date, 'now', () => now);
+  for (const reportDelay of [12 * 3600000, 2 * 86400000, null]) {
+    const storage = memoryStorage(), control = new Control({storage}, {});
+    await storage.put(`audience:${new Date(now).toISOString().slice(0, 10)}`, {unknown: {page: 1}});
+    if (reportDelay !== null) {
+      await storage.put(`expires:${now + reportDelay}:future`, true);
+      await storage.put('report:future', {fixture: true});
+    }
+    await control.alarm();
+    assert.equal(await storage.getAlarm(), now + Math.min(reportDelay ?? Infinity, 86400000));
+    if (reportDelay !== null) assert.deepEqual(await storage.get('report:future'), {fixture: true});
+  }
+});

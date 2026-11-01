@@ -59,3 +59,16 @@ DNS checks validate A/AAAA answers but do not bind the later hostname resolution
 `redirect: 'error'` is not supported by edge fetch. The fixed-origin DNS call uses `manual` and rejects non-2xx; target requests use manual redirects with validation. Native runtime tests cover behavior rather than Node-only mocks.
 
 Analysis is source-level. A JS-rendered site may need manual browser review; a valid source signal is not a design, performance, security, accessibility or SEO verdict. Product changes should be driven by actual accepted/rejected findings and repeat use, not larger checklist counts.
+
+
+## Prospective audience totals (November 2026 candidate)
+
+`python3 scripts/cloudflare.py stats --days 7` (or `30`) requests the existing protected stats route. `GET /api/stats?days=7|30` keeps operational `days` separate (existing eight-day retention) and adds `audience` with schemaVersion/windowDays/from/to/observedSince/coverage/days. New `audience:YYYY-MM-DD` records in the same Control object are retained 35 days. Missing dates or observedSince=null mean unobserved coverage, never evidence of no visitors. Historical operational totals are unclassified and must not be presented as browser usage or humans. The current UTC date is partial.
+
+Each audience day contains browser_like/bot_like/unknown maps of observed page/scan_started/scan_completed/scan_failed/shared counts. Omitted counters within an observed day are zero accepted events; no unique visitors, conversion attribution or event history is available. Browser-like requires browser UA, language and Fetch Metadata evidence; explicit crawler/headless/tool tokens win as bot-like, and incomplete clients stay unknown. Signals are forgeable, so browser-like never means verified human. No raw UA/IP, identifiers, cookies or fingerprints are persisted in audience totals.
+
+Homepage counts require successful GET / HTML document navigation with same-origin/same-site/none/cross-site Fetch Metadata, including ordinary external referrals. This deliberately excludes arbitrary scanner paths, fetches and clients without navigation metadata; it is not all edge traffic. Worker-first routing now includes `/`. The existing READ_LIMITER bounds page writes under an `audience:` key prefix, separate from shared-report reads; scan/share events use the existing write limiter and actual accepted operation outcomes. There is no new public event endpoint or service.
+
+`X-Archbotics-QA: 1`, DNT:1 and Sec-GPC:1 skip audience recording before the page usage limiter or audience storage. Operational scan limits, reports and existing operational counters still run. QA checks should always send the explicit QA header. All audience writes are best effort and do not establish payment/customer outcomes or complete usage coverage. Source changes require root integration and live verification before being called deployed.
+
+Audience cleanup alarms run at least daily while audience records exist, or at the next report expiry when that is sooner. A report with a later expiry cannot postpone daily audience retention cleanup.

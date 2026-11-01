@@ -1,3 +1,4 @@
+import {classifyAudience, usageExcluded, homeNavigation} from './audience.js';
 import {analyze, exampleReport, AnalyzeError} from './analyze.js';
 import {fetchPage, normalizeTarget, PublicError, readLimited} from './network.js';
 import {Control, constantTimeEqual} from './control.js';
@@ -59,6 +60,11 @@ async function recordEvent(env, event) {
   try { await control(env, '/event', {event}); } catch { /* Operational counters are best effort, never business outcomes. */ }
 }
 
+async function recordUsage(env, request, event) {
+  if (usageExcluded(request)) return;
+  try { await control(env, '/audience', {event, audience: classifyAudience(request)}); } catch { /* Usage never changes product outcomes. */ }
+}
+
 export async function handleRequest(request, env, ctx, dependencies = {}) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -70,7 +76,18 @@ export async function handleRequest(request, env, ctx, dependencies = {}) {
       headers.set('X-Robots-Tag', 'noindex, nofollow'); headers.set('Referrer-Policy', 'no-referrer'); headers.set('Cache-Control', 'no-store');
       return new Response(asset.body, {status: asset.status, headers});
     }
-    if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
+    if (!path.startsWith('/api/')) {
+      const response = await env.ASSETS.fetch(request);
+      if (!usageExcluded(request) && homeNavigation(request, response) && env.READ_LIMITER && typeof ctx?.waitUntil === 'function') {
+        ctx.waitUntil((async () => {
+          try {
+            const {success} = await env.READ_LIMITER.limit({key: `audience:${request.headers.get('CF-Connecting-IP') || 'local-client'}`});
+            if (success) await recordUsage(env, request, 'page');
+          } catch { /* Usage is best effort. */ }
+        })());
+      }
+      return response;
+    }
     if (request.method === 'OPTIONS') return failure('cors_not_enabled', 'Cross-origin browser requests are not supported. Use the same-origin app or a server-side client.', 405);
     if (['POST', 'DELETE', 'PUT', 'PATCH'].includes(request.method)) {
       const origin = request.headers.get('origin');
@@ -90,13 +107,15 @@ export async function handleRequest(request, env, ctx, dependencies = {}) {
       const reserved = await control(env, '/reserve', {});
       if (reserved.status === 429) return failure('daily_limit', 'The free beta has reached its daily check limit. Please try again tomorrow (UTC).', 429);
       if (!reserved.ok) throw new Error('control unavailable');
+      await recordUsage(env, request, 'scan_started');
       try {
         const fetched = await (dependencies.fetchPage || fetchPage)(target.href);
         const report = analyze({...fetched, mode: input.mode, checkedAt: new Date().toISOString()});
         const shareToken = env.REPORT_SECRET ? await signReport(report, env.REPORT_SECRET) : '';
         await recordEvent(env, 'completed');
+        await recordUsage(env, request, 'scan_completed');
         return json({ok: true, report, shareToken});
-      } catch (error) { await recordEvent(env, 'failed'); throw error; }
+      } catch (error) { await recordEvent(env, 'failed'); await recordUsage(env, request, 'scan_failed'); throw error; }
     }
     if (path === '/api/share' && request.method === 'POST') {
       if (env.SERVICE_ENABLED !== 'true') return failure('service_paused', 'New report sharing is paused.', 503);
@@ -108,6 +127,7 @@ export async function handleRequest(request, env, ctx, dependencies = {}) {
       if (stored.status === 429) return failure('daily_limit', 'The free beta has reached its daily sharing limit. Download the report instead.', 429);
       if (!stored.ok) throw new Error('storage unavailable');
       const {expiresAt} = await stored.json();
+      await recordUsage(env, request, 'shared');
       return json({ok: true, id, url: `${url.origin}/r/${id}`, expiresAt, deleteKey}, 201);
     }
     const match = /^\/api\/reports\/([a-f0-9]{32})$/.exec(path);
@@ -133,7 +153,10 @@ export async function handleRequest(request, env, ctx, dependencies = {}) {
     if (path === '/api/stats' && request.method === 'GET') {
       if (!env.ADMIN_TOKEN || !constantTimeEqual(request.headers.get('authorization') || '', `Bearer ${env.ADMIN_TOKEN}`))
         return failure('not_found', 'Not found.', 404);
-      const response = await control(env, '/stats');
+      const days = url.searchParams.get('days') || '7';
+      if (!['7', '30'].includes(days)) return failure('invalid_window', 'Choose 7 or 30 days.', 400);
+      const response = await control(env, `/stats?days=${days}`);
+      if (!response.ok) throw new Error('stats unavailable');
       return json(await response.json());
     }
     return failure('not_found', 'This endpoint does not exist, or the HTTP method is not supported.', 404);

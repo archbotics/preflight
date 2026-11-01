@@ -100,3 +100,74 @@ test('unexpected backend errors are generic and secrets/internal strings never l
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
 });
+
+test('homepage audience counts accepted document navigations and excludes QA/privacy before usage work', async () => {
+  const calls = [], pending = []; let limits = 0;
+  const env = {ASSETS: {fetch: async () => new Response('<h1>Home</h1>', {headers: {'content-type': 'text/html'}})},
+    READ_LIMITER: {limit: async () => {limits++; return {success: true};}},
+    CONTROL: {idFromName: x => x, get: () => ({fetch: async (url, options) => {calls.push({path: new URL(url).pathname, data: JSON.parse(options.body)}); return Response.json({ok: true});}})}};
+  const headers = {'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/129 Safari/537.36', 'accept-language': 'en', accept: 'text/html', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document', 'sec-fetch-site': 'none'};
+  const ctx = {waitUntil: task => pending.push(task)};
+  for (const signal of ['X-Archbotics-QA', 'DNT', 'Sec-GPC']) assert.equal((await handleRequest(new Request('https://launchcheck.example/', {headers: {...headers, [signal]: '1'}}), env, ctx)).status, 200);
+  await Promise.all(pending); assert.equal(limits, 0); assert.equal(calls.length, 0);
+  for (const path of ['/.env', '/wp-admin', '/assets/app.js']) await handleRequest(new Request(`https://launchcheck.example${path}`, {headers}), env, ctx);
+  await handleRequest(new Request('https://launchcheck.example/', {headers: {...headers, 'sec-fetch-mode': 'cors'}}), env, ctx);
+  await handleRequest(new Request('https://launchcheck.example/', {headers: {...headers, 'sec-fetch-site': 'invalid'}}), env, ctx);
+  await handleRequest(new Request('https://launchcheck.example/', {method: 'HEAD', headers}), env, ctx);
+  await Promise.all(pending); assert.equal(calls.length, 0);
+  await handleRequest(new Request('https://launchcheck.example/', {headers}), env, ctx); await Promise.all(pending);
+  assert.deepEqual(calls, [{path: '/audience', data: {event: 'page', audience: 'browser_like'}}]);
+  env.READ_LIMITER.limit = async () => ({success: false});
+  await handleRequest(new Request('https://launchcheck.example/', {headers}), env, ctx); await Promise.all(pending);
+  assert.equal(calls.length, 1);
+  env.READ_LIMITER.limit = async () => {throw Error('unavailable');};
+  assert.equal((await handleRequest(new Request('https://launchcheck.example/', {headers}), env, ctx)).status, 200); await Promise.all(pending);
+  assert.equal(calls.length, 1);
+});
+
+test('scan audience distinguishes browser/bot/unknown, never persists headers, and preserves operational counts under QA', async () => {
+  const calls = [];
+  const env = {REPORT_SECRET: secret, SERVICE_ENABLED: 'true', WRITE_LIMITER: {limit: async () => ({success: true})},
+    CONTROL: {idFromName: x => x, get: () => ({fetch: async (url, options) => {calls.push({path: new URL(url).pathname, body: JSON.parse(options.body)}); return Response.json({accepted: true});}})}};
+  const dependencies = {fetchPage: async () => ({html: '<h1>Test</h1>', url: 'https://example.com/', status: 200, headers: {'content-type': 'text/html'}})};
+  for (const [headers, audience] of [[{}, 'unknown'], [{'user-agent': 'curl/8'}, 'bot_like'], [{'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/129 Safari/537.36', 'accept-language': 'en', 'sec-fetch-mode': 'cors', 'sec-fetch-site': 'same-origin'}, 'browser_like']]) {
+    calls.length = 0;
+    const response = await handleRequest(request('/api/check', {url: 'https://example.com/', mode: 'live'}, {headers: {'content-type': 'application/json', ...headers}}), env, {}, dependencies);
+    assert.equal(response.status, 200);
+    assert.deepEqual(calls.filter(x => x.path === '/audience').map(x => x.body), [{event: 'scan_started', audience}, {event: 'scan_completed', audience}]);
+  }
+  for (const header of ['X-Archbotics-QA', 'DNT', 'Sec-GPC']) {
+    calls.length = 0;
+    assert.equal((await handleRequest(request('/api/check', {url: 'https://example.com/', mode: 'live'}, {headers: {'content-type': 'application/json', [header]: '1'}}), env, {}, dependencies)).status, 200);
+    assert.deepEqual(calls.map(x => x.path), ['/reserve', '/event']);
+  }
+  calls.length = 0;
+  const failed = await handleRequest(request('/api/check', {url: 'https://example.com/', mode: 'live'}), env, {}, {fetchPage: async () => {throw Error('failed');}});
+  assert.equal(failed.status, 503);
+  assert.deepEqual(calls.filter(x => x.path === '/audience').map(x => x.body.event), ['scan_started', 'scan_failed']);
+  env.CONTROL.get = () => ({fetch: async (url) => {if (new URL(url).pathname === '/audience') throw Error('unavailable'); return Response.json({accepted: true});}});
+  assert.equal((await handleRequest(request('/api/check', {url: 'https://example.com/', mode: 'live'}), env, {}, dependencies)).status, 200);
+});
+
+test('external document referrals count as browser-like, and exhausted homepage telemetry cannot block report reads', async () => {
+  const buckets = new Map(), events = [], pending = [];
+  const env = {
+    ASSETS: {fetch: async () => new Response('<h1>Home</h1>', {headers: {'content-type': 'text/html'}})},
+    READ_LIMITER: {limit: async ({key}) => {const n = (buckets.get(key) || 0) + 1; buckets.set(key, n); return {success: n <= 2};}},
+    CONTROL: {idFromName: x => x, get: () => ({fetch: async (url, options) => {
+      if (new URL(url).pathname === '/audience') {events.push(JSON.parse(options.body)); return Response.json({ok: true});}
+      return Response.json({ok: true, report: {title: 'Stored report'}});
+    }})},
+  };
+  const headers = {'CF-Connecting-IP': '203.0.113.4', 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/129 Safari/537.36', 'accept-language': 'en', accept: 'text/html', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document', 'sec-fetch-site': 'cross-site'};
+  const ctx = {waitUntil: task => pending.push(task)};
+  for (let n = 0; n < 3; n++) assert.equal((await handleRequest(new Request('https://launchcheck.example/', {headers}), env, ctx)).status, 200);
+  await Promise.all(pending);
+  assert.deepEqual(events, [{event: 'page', audience: 'browser_like'}, {event: 'page', audience: 'browser_like'}]);
+  const shared = await handleRequest(new Request(`https://launchcheck.example/api/reports/${'a'.repeat(32)}`, {headers}), env, ctx);
+  assert.equal(shared.status, 200, 'homepage telemetry exhaustion must not consume shared-report allowance');
+  assert.equal((await shared.json()).report.title, 'Stored report');
+  assert.deepEqual([...buckets], [['audience:203.0.113.4', 3], ['203.0.113.4', 1]]);
+  const crossWrite = await handleRequest(request('/api/check', {}, {headers: {origin: 'https://external.example', 'sec-fetch-site': 'cross-site'}}), env);
+  assert.equal(crossWrite.status, 403, 'accepting referral navigation must not admit cross-site API writes');
+});

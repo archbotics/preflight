@@ -57,3 +57,6 @@ Errors: `{ "ok": false, "error": { "code": "...", "message": "..." } }`.
 | 503 / 504 | Paused/unavailable service or target deadline |
 
 `GET /api/example` returns a labeled synthetic fixture. `GET /api/health` returns current code version and whether checks are enabled. Operator-only `/api/stats` requires a separate bearer token and exposes aggregate operational counts, never visitor identity or report bodies.
+
+
+Operator-only `GET /api/stats?days=7` (or `30`) also returns prospective `audience` daily request-heuristic totals, distinct from existing operational `days`. Invalid windows return 400. The audience section exposes observedSince and coverage; missing history stays unknown. See Operations for the exact bucket/event names and retention. `X-Archbotics-QA: 1`, DNT and GPC exclude audience telemetry without changing scan/share functionality or operational limits.

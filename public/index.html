@@ -30,7 +30,7 @@
       </section>
     </noscript>
   </main>
-  <footer class="site-footer shell"><span>© Archbotics</span><nav aria-label="Footer"><button class="footer-link" type="button" data-docs="api">Public API</button><button class="footer-link" type="button" data-docs="privacy">Privacy</button></nav></footer>
+  <footer class="site-footer shell"><span>© <a href="https://archbotics.com/">Archbotics</a></span><nav aria-label="Footer"><button class="footer-link" type="button" data-docs="api">Public API</button><button class="footer-link" type="button" data-docs="privacy">Privacy</button></nav></footer>
   <dialog id="docs-dialog" aria-labelledby="docs-title">
     <div class="docs-dialog-head"><h2 id="docs-title" tabindex="-1">Preflight documentation</h2><button id="docs-close" class="dialog-close" type="button" aria-label="Close documentation">×</button></div>
     <section id="api-docs" class="docs-section" hidden>
@@ -41,7 +41,7 @@
       <p>The response includes a structured report and, when configured, a short-lived share token. Reports are stored only after <code>POST /api/share</code>.</p>
     </section>
     <section id="privacy-docs" class="docs-section" hidden>
-      <p>A scan fetches a page to inspect its HTML and response. Raw HTML is not stored. A report is stored only when you choose Share, on Cloudflare infrastructure, for seven days. Normal infrastructure processing may occur. The browser keeps the deletion key for reports you create; it is never part of the share link.</p>
+      <p>A scan fetches a page to inspect its HTML and response. Raw HTML is not stored. A report is stored only when you choose Share, on Cloudflare infrastructure, for seven days. We keep daily totals for homepage openings, scans and shares, grouped by whether requests look like browsers, automated tools, or neither. These estimates do not identify individual visitors. Request headers are inspected without being stored in these totals. Usage counts respect Do Not Track and Global Privacy Control. Normal infrastructure processing may occur. The browser keeps the deletion key for reports you create; it is never part of the share link.</p>
     </section>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
